@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>关系图制作工具</title>
+    <link rel="icon" href="guanxitu.png" type="image/png">
     <style>
         * {
             margin: 0;
@@ -229,8 +230,8 @@
 
         #canvas {
             position: relative;
-            width: 4000px;
-            height: 4000px;
+            width: 2000px;
+            height: 2000px;
             background-color: #fafafa;
         }
 
@@ -413,14 +414,19 @@
                 <button class="btn btn-secondary" onclick="clearCanvas()">清空画布</button>
             </div>
             <div class="tool-group">
-                <button class="btn btn-secondary" onclick="saveToCloud()">保存到云端</button>
-                <button class="btn btn-secondary" onclick="loadFromCloud()">从云端加载</button>
+                <button class="btn btn-secondary" onclick="undo()">撤回 (Ctrl+Z)</button>
+                <button class="btn btn-secondary" onclick="redo()">恢复 (Ctrl+Y)</button>
+            </div>
+            <div class="tool-group">
+                <button class="btn btn-secondary" onclick="saveToCloud()">快速保存</button>
+                <button class="btn btn-secondary" onclick="loadFromCloud()">快速加载</button>
                 <button class="btn btn-secondary" onclick="saveToLocal()">保存到本地</button>
                 <button class="btn btn-secondary" onclick="loadFromLocal()">从本地加载</button>
             </div>
             <div class="tool-group">
                 <button class="btn btn-secondary" onclick="generateShareCode()">生成分享码</button>
                 <button class="btn btn-secondary" onclick="importShareCode()">导入分享码</button>
+                <button class="btn btn-secondary" onclick="exportImage()">导出图片</button>
             </div>
             <div class="tool-group">
                 <button class="btn btn-secondary" onclick="window.open('https://space.bilibili.com/3537124691282425?spm_id_from=333.788.0.0', '_blank')">制作者B站主页</button>
@@ -471,6 +477,13 @@
         let isCanvasDragging = false;
         let canvasDragStartX, canvasDragStartY;
         
+        // 触摸事件相关变量
+        let lastTapTime = 0;
+        let doubleTapDetected = false;
+        let longPressTimer = null;
+        const DOUBLE_TAP_DELAY = 300;
+        const LONG_PRESS_DELAY = 500;
+        
         // 历史记录系统
         let history = [];
         let historyIndex = -1;
@@ -510,6 +523,7 @@
             initCanvas();
             initEvents();
             loadFromUrl(); // 检查URL参数并加载思维导图
+            saveHistory(); // 保存初始状态到历史记录
         }
 
         // 初始化画布
@@ -535,10 +549,27 @@
             canvas.addEventListener('touchstart', function(e) {
                 // 只有在空白区域触摸才触发画布拖动
                 if (!e.target.closest('.node')) {
+                    e.preventDefault();
                     const touch = e.touches[0];
-                    isCanvasDragging = true;
-                    canvasDragStartX = touch.clientX;
-                    canvasDragStartY = touch.clientY;
+                    
+                    // 检测双击
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTapTime;
+                    if (tapLength < 300 && tapLength > 0) {
+                        // 双击检测到
+                        doubleTapDetected = true;
+                        // 双击后，长按触发画布拖动
+                        longPressTimer = setTimeout(function() {
+                            // 长按触发画布拖动
+                            isCanvasDragging = true;
+                            canvasDragStartX = touch.clientX;
+                            canvasDragStartY = touch.clientY;
+                        }, 300); // 300毫秒长按
+                    } else {
+                        // 单击，不触发任何操作
+                        doubleTapDetected = false;
+                    }
+                    lastTapTime = currentTime;
                 }
             });
         }
@@ -566,6 +597,7 @@
             };
             nodes.push(node);
             render();
+            saveHistory(); // 保存历史记录
         }
 
         // 添加子节点
@@ -589,6 +621,7 @@
             };
             nodes.push(node);
             render();
+            saveHistory(); // 保存历史记录
         }
 
         // 删除节点
@@ -606,6 +639,7 @@
             nodes = nodes.filter(n => n.id !== nodeId);
             deselectNode();
             render();
+            saveHistory(); // 保存历史记录
         }
 
         // 编辑节点
@@ -627,6 +661,7 @@
                 node.text = document.getElementById('nodeText').value;
                 node.note = document.getElementById('nodeNote').value;
                 render();
+                saveHistory(); // 保存历史记录
             }
             closeNodeForm();
         }
@@ -759,6 +794,9 @@
 
         // 鼠标释放事件
         function onMouseUp() {
+            if (isDragging || isCanvasDragging) {
+                saveHistory();
+            }
             isDragging = false;
             isCanvasDragging = false;
             // 移除所有节点的拖动效果
@@ -804,11 +842,18 @@
 
         // 触摸结束事件
         function onTouchEnd() {
+            // 清除长按定时器
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+            
             if (isDragging || isCanvasDragging) {
                 saveHistory();
             }
             isDragging = false;
             isCanvasDragging = false;
+            doubleTapDetected = false;
             // 移除所有节点的拖动效果
             document.querySelectorAll('.node').forEach(nodeElement => {
                 nodeElement.classList.remove('dragging');
@@ -936,10 +981,6 @@
                     // 添加拖动效果
                     nodeElement.classList.add('dragging');
                 });
-
-                // 触摸事件相关变量
-                let lastTapTime = 0;
-                let doubleTapDetected = false;
                 
                 // 添加触摸开始事件
                 nodeElement.addEventListener('touchstart', function(e) {
@@ -963,14 +1004,14 @@
                         // 双击检测到
                         doubleTapDetected = true;
                         // 双击后，长按触发拖动
-                        nodeElement.longPressTimer = setTimeout(function() {
+                        longPressTimer = setTimeout(function() {
                             // 长按触发拖动
                             isDragging = true;
                             nodeElement.classList.add('dragging');
                         }, 300); // 300毫秒长按
                     } else {
                         // 单击，长按触发编辑
-                        nodeElement.longPressTimer = setTimeout(function() {
+                        longPressTimer = setTimeout(function() {
                             // 长按触发编辑节点
                             editNode(node.id);
                         }, 500); // 500毫秒长按
@@ -980,21 +1021,17 @@
                 
                 // 触摸移动时处理
                 nodeElement.addEventListener('touchmove', function(e) {
-                    if (nodeElement.longPressTimer) {
-                        clearTimeout(nodeElement.longPressTimer);
-                        nodeElement.longPressTimer = null;
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
                     }
                 });
                 
                 // 触摸结束时清除长按计时器
                 nodeElement.addEventListener('touchend', function(e) {
-                    if (nodeElement.longPressTimer) {
-                        clearTimeout(nodeElement.longPressTimer);
-                        nodeElement.longPressTimer = null;
-                    }
-                    // 重置双击检测
-                    if (!isDragging) {
-                        doubleTapDetected = false;
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
                     }
                 });
 
@@ -1074,6 +1111,7 @@
                 selectedNode = null;
                 currentNodeId = 1;
                 render();
+                saveHistory(); // 保存历史记录
             }
         }
 
@@ -1150,7 +1188,8 @@
                     t: node.text,
                     x: node.x,
                     y: node.y,
-                    p: node.parentId
+                    p: node.parentId,
+                    nt: node.note // 包含节点备注
                 })),
                 c: currentNodeId
             };
@@ -1231,7 +1270,8 @@
                         text: node.t,
                         x: node.x,
                         y: node.y,
-                        parentId: node.p
+                        parentId: node.p,
+                        note: node.nt // 还原节点备注
                     }));
                     nodes = loadedNodes;
                     
@@ -1303,7 +1343,8 @@
                             text: node.t,
                             x: node.x,
                             y: node.y,
-                            parentId: node.p
+                            parentId: node.p,
+                            note: node.nt // 还原节点备注
                         }));
                     } else if (parsedData.nodes) {
                         // 旧格式兼容
@@ -1367,6 +1408,154 @@
                 } catch (error) {
                     console.error('从云端加载失败:', error);
                 }
+            }
+        }
+
+        // 键盘快捷键支持
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Z 撤回
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            }
+            // Ctrl+Y 恢复
+            if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                redo();
+            }
+            // Ctrl+Shift+Z 恢复（另一种常见快捷键）
+            if (e.ctrlKey && e.shiftKey && e.key === 'z') {
+                e.preventDefault();
+                redo();
+            }
+        });
+
+        // 导出图片功能
+        function exportImage() {
+            const canvas = document.getElementById('canvas');
+            
+            // 创建一个新的canvas元素用于导出
+            const exportCanvas = document.createElement('canvas');
+            const ctx = exportCanvas.getContext('2d');
+            
+            // 计算画布的边界
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            nodes.forEach(node => {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + 200); // 假设节点最大宽度200px
+                maxY = Math.max(maxY, node.y + 100); // 假设节点最大高度100px
+            });
+            
+            // 添加边距
+            const padding = 50;
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
+            
+            // 设置导出canvas的尺寸
+            const width = maxX - minX;
+            const height = maxY - minY;
+            exportCanvas.width = width;
+            exportCanvas.height = height;
+            
+            // 填充白色背景
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制连接线
+            ctx.strokeStyle = '#95a5a6';
+            ctx.lineWidth = 2;
+            nodes.forEach(node => {
+                if (node.parentId) {
+                    const parent = nodes.find(n => n.id === node.parentId);
+                    if (parent) {
+                        ctx.beginPath();
+                        ctx.moveTo(parent.x + 100 - minX, parent.y + 30 - minY);
+                        ctx.lineTo(node.x + 100 - minX, node.y + 30 - minY);
+                        ctx.stroke();
+                        
+                        // 绘制箭头
+                        const angle = Math.atan2(node.y - parent.y, node.x - parent.x);
+                        const arrowLength = 10;
+                        ctx.beginPath();
+                        ctx.moveTo(node.x + 100 - minX, node.y + 30 - minY);
+                        ctx.lineTo(
+                            node.x + 100 - minX - arrowLength * Math.cos(angle - Math.PI / 6),
+                            node.y + 30 - minY - arrowLength * Math.sin(angle - Math.PI / 6)
+                        );
+                        ctx.moveTo(node.x + 100 - minX, node.y + 30 - minY);
+                        ctx.lineTo(
+                            node.x + 100 - minX - arrowLength * Math.cos(angle + Math.PI / 6),
+                            node.y + 30 - minY - arrowLength * Math.sin(angle + Math.PI / 6)
+                        );
+                        ctx.stroke();
+                    }
+                }
+            });
+            
+            // 绘制节点
+            nodes.forEach(node => {
+                // 绘制节点背景
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#3498db';
+                ctx.lineWidth = 2;
+                
+                const nodeX = node.x - minX;
+                const nodeY = node.y - minY;
+                const nodeWidth = 200;
+                const nodeHeight = 60;
+                
+                // 绘制圆角矩形
+                ctx.beginPath();
+                ctx.roundRect(nodeX, nodeY, nodeWidth, nodeHeight, 8);
+                ctx.fill();
+                ctx.stroke();
+                
+                // 绘制节点文本
+                ctx.fillStyle = '#333333';
+                ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // 处理文本换行
+                const maxWidth = nodeWidth - 20;
+                const lineHeight = 20;
+                const words = node.text.split('');
+                let line = '';
+                let lines = [];
+                
+                for (let i = 0; i < words.length; i++) {
+                    const testLine = line + words[i];
+                    const metrics = ctx.measureText(testLine);
+                    if (metrics.width > maxWidth && i > 0) {
+                        lines.push(line);
+                        line = words[i];
+                    } else {
+                        line = testLine;
+                    }
+                }
+                lines.push(line);
+                
+                // 绘制文本行
+                const startY = nodeY + nodeHeight / 2 - (lines.length - 1) * lineHeight / 2;
+                lines.forEach((line, index) => {
+                    ctx.fillText(line, nodeX + nodeWidth / 2, startY + index * lineHeight);
+                });
+            });
+            
+            // 导出图片
+            try {
+                const dataUrl = exportCanvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = '思维导图_' + new Date().getTime() + '.png';
+                link.href = dataUrl;
+                link.click();
+                alert('图片已导出');
+            } catch (error) {
+                console.error('导出图片失败:', error);
+                alert('导出图片失败，请重试');
             }
         }
 
