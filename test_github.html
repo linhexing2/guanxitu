@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub API Test</title>
+</head>
+<body>
+    <h1>GitHub API Test</h1>
+    <button onclick="testGitHubAPI()">Test GitHub API</button>
+    <div id="result" style="margin-top: 20px; white-space: pre-wrap; font-family: monospace;"></div>
+
+    <script>
+        const GITHUB_CONFIG = {
+            owner: 'linhexing2',
+            repo: 'guanxitu',
+            path: 'main.json',
+            branch: 'main'
+        };
+        
+        const GITHUB_TOKEN = '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';
+
+        async function testGitHubAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = 'Testing...\n';
+            
+            try {
+                // Test 1: Check if file exists
+                resultDiv.textContent += '1. Checking if file exists...\n';
+                const getUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+                resultDiv.textContent += `URL: ${getUrl}\n`;
+                
+                const getResponse = await fetch(getUrl, {
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                resultDiv.textContent += `Response status: ${getResponse.status}\n`;
+                
+                if (getResponse.ok) {
+                    const fileData = await getResponse.json();
+                    resultDiv.textContent += `File exists! SHA: ${fileData.sha}\n`;
+                } else {
+                    const errorText = await getResponse.text();
+                    resultDiv.textContent += `File check failed: ${errorText}\n`;
+                }
+                
+                // Test 2: Try to create/update file
+                resultDiv.textContent += '\n2. Trying to create/update file...\n';
+                const testData = JSON.stringify({ test: 'data', timestamp: new Date().toISOString() }, null, 2);
+                const content = btoa(unescape(encodeURIComponent(testData)));
+                
+                const putUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
+                resultDiv.textContent += `URL: ${putUrl}\n`;
+                
+                const body = {
+                    message: 'Test update from API',
+                    content: content,
+                    branch: GITHUB_CONFIG.branch
+                };
+                
+                // If file exists, add SHA
+                if (getResponse.ok) {
+                    const fileData = await getResponse.json();
+                    body.sha = fileData.sha;
+                    resultDiv.textContent += `Using SHA: ${fileData.sha}\n`;
+                }
+                
+                const putResponse = await fetch(putUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                resultDiv.textContent += `Response status: ${putResponse.status}\n`;
+                
+                if (putResponse.ok) {
+                    const putData = await putResponse.json();
+                    resultDiv.textContent += `SUCCESS! File updated.\n`;
+                    resultDiv.textContent += `Commit SHA: ${putData.commit.sha}\n`;
+                } else {
+                    const errorText = await putResponse.text();
+                    resultDiv.textContent += `FAILED: ${errorText}\n`;
+                }
+                
+            } catch (error) {
+                resultDiv.textContent += `ERROR: ${error.message}\n`;
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

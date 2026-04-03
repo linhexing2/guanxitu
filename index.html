@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>关系图制作工具</title>
+    <link rel="icon" href="guanxitu.png" type="image/png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .toolbar {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .tool-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+
+        .tool-group:first-child {
+            margin-left: 0;
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            outline: none;
+            user-select: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn:active {
+            transform: translateY(0) scale(0.98);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background-color: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:active::before {
+            width: 400px;
+            height: 400px;
+        }
+
+        .btn:focus {
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-right: 5px;
+            border-radius: 4px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-small:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .btn-small:active {
+            transform: translateY(0) scale(0.98);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn-small:focus {
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            margin-top: 20px;
+        }
+
+        .canvas-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: auto;
+            min-height: 600px;
+            position: relative;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+                margin-bottom: 20px;
+            }
+            
+            .toolbar {
+                padding: 10px;
+                gap: 10px;
+            }
+            
+            .tool-group {
+                padding: 6px 10px;
+                gap: 5px;
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            
+            .canvas-container {
+                min-height: 400px;
+            }
+            
+            #canvas {
+                width: 2000px;
+                height: 2000px;
+            }
+            
+            .node {
+                min-width: 100px;
+                max-width: 160px;
+                padding: 10px;
+            }
+            
+            .node-content {
+                font-size: 12px;
+            }
+        }
+
+        /* 触摸设备优化 */
+        @media (hover: none) and (pointer: coarse) {
+            .node {
+                touch-action: none;
+            }
+            
+            .btn {
+                min-height: 44px;
+                min-width: 44px;
+            }
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background-color: white;
+            padding: 5px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #canvas {
+            position: relative;
+            width: 2000px;
+            height: 2000px;
+            background-color: #fafafa;
+        }
+
+        .node {
+            position: absolute;
+            background-color: white;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            min-width: 120px;
+            max-width: 200px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10;
+            transform-origin: center;
+        }
+
+        .node:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .node.new {
+            animation: nodeAppear 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .node.dragging {
+            z-index: 100;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            transform: rotate(2deg);
+        }
+
+        @keyframes nodeAppear {
+            0% {
+                opacity: 0;
+                transform: scale(0.5) translateY(20px);
+            }
+            70% {
+                opacity: 1;
+                transform: scale(1.1) translateY(-5px);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .node.selected {
+            border-color: #e74c3c;
+            box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.3);
+        }
+
+        .node-content {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .node-actions {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        .action-btn {
+            width: 20px;
+            height: 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .action-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .action-add {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .action-delete {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .edge {
+            position: absolute;
+            background-color: #95a5a6;
+            transform-origin: left center;
+            z-index: 1;
+        }
+
+        .edge::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-width: 4px;
+            border-style: solid;
+            border-color: transparent transparent transparent #95a5a6;
+        }
+
+        .form-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .form-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            width: 400px;
+            max-width: 90%;
+        }
+
+        .form-container h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>关系表制作工具</h1>
+        
+        <div class="toolbar">
+            <div class="tool-group">
+                <button class="btn btn-primary" onclick="addRootNode()">添加根节点</button>
+                <button class="btn btn-secondary" onclick="editSelectedNode()">编辑节点</button>
+                <button class="btn btn-secondary" onclick="clearCanvas()">清空画布</button>
+            </div>
+            <div class="tool-group">
+                <button class="btn btn-secondary" onclick="undo()">撤回 (Ctrl+Z)</button>
+                <button class="btn btn-secondary" onclick="redo()">恢复 (Ctrl+Y)</button>
+            </div>
+            <div class="tool-group">
+                <button class="btn btn-secondary" onclick="saveToCloud()">保存到GitHub</button>
+                <button class="btn btn-secondary" onclick="loadFromCloud()">从GitHub加载</button>
+                <button class="btn btn-secondary" onclick="saveToLocal()">保存到本地</button>
+                <button class="btn btn-secondary" onclick="loadFromLocal()">从本地加载</button>
+            </div>
+            <div class="tool-group">
+                <button class="btn btn-secondary" onclick="generateShareCode()">生成分享码</button>
+                <button class="btn btn-secondary" onclick="importShareCode()">导入分享码</button>
+                <button class="btn btn-secondary" onclick="exportImage()">导出图片</button>
+            </div>
+            <div class="tool-group">
+                <button class="btn btn-secondary" onclick="window.open('https://space.bilibili.com/3537124691282425?spm_id_from=333.788.0.0', '_blank')">制作者B站主页</button>
+            </div>
+        </div>
+
+        <div class="canvas-wrapper">
+            <div class="zoom-controls">
+                <button class="btn btn-small" onclick="zoomIn()">+</button>
+                <button class="btn btn-small" onclick="zoomOut()">-</button>
+                <button class="btn btn-small" id="zoomLevel" onclick="resetZoom()">100%</button>
+                <button class="btn btn-small" onclick="resetView()">复位</button>
+            </div>
+            <div class="canvas-container">
+                <div id="canvas"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-overlay hidden" id="nodeForm">
+        <div class="form-container">
+            <h2>编辑节点</h2>
+            <div class="form-group">
+                <label for="nodeText">节点名称</label>
+                <input type="text" id="nodeText" placeholder="输入节点名称">
+            </div>
+            <div class="form-group">
+                <label for="nodeNote">节点备注</label>
+                <textarea id="nodeNote" placeholder="输入节点备注" rows="3"></textarea>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeNodeForm()">取消</button>
+                <button class="btn btn-primary" onclick="saveNode()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-overlay hidden" id="saveProgressOverlay">
+        <div class="form-container">
+            <h2>保存到GitHub</h2>
+            <div class="form-group">
+                <label>保存进度</label>
+                <div style="width: 100%; height: 20px; background-color: #f0f0f0; border-radius: 10px; overflow: hidden;">
+                    <div id="saveProgressBar" style="width: 0%; height: 100%; background-color: #3498db; transition: width 0.3s ease;"></div>
+                </div>
+                <p id="saveProgressText" style="margin-top: 10px; text-align: center;">准备保存...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-overlay hidden" id="tokenForm">
+        <div class="form-container">
+            <h2>输入GitHub Token</h2>
+            <div class="form-group">
+                <label for="githubToken">GitHub Personal Access Token（需要repo权限）：</label>
+                <input type="password" id="githubToken" placeholder="输入您的GitHub Token">
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeTokenForm()">取消</button>
+                <button class="btn btn-primary" onclick="saveToCloudWithToken()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let nodes = [];
+        let selectedNode = null;
+        let currentNodeId = 1;
+        let isDragging = false;
+        let dragStartX, dragStartY;
+        let dragOffsetX, dragOffsetY;
+        
+        // 画布拖动变量
+        let isCanvasDragging = false;
+        let canvasDragStartX, canvasDragStartY;
+        
+        // 触摸事件相关变量
+        let lastTapTime = 0;
+        let doubleTapDetected = false;
+        let longPressTimer = null;
+        const DOUBLE_TAP_DELAY = 300;
+        const LONG_PRESS_DELAY = 500;
+        
+        // 历史记录系统
+        let history = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 50;
+        
+        // GitHub配置 - 请修改以下配置为您的仓库信息
+        const GITHUB_CONFIG = {
+            owner: 'linhexing2',  // GitHub用户名
+            repo: 'guanxitu',  // 仓库名
+            path: 'main.json',  // 文件路径
+            branch: 'main'  // 分支名
+        };
+
+        // GitHub Token（自动保存时使用）
+        const GITHUB_TOKEN = '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';
+        
+        // 保存历史记录
+        function saveHistory() {
+            // 限制历史记录数量
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            
+            // 保存当前状态
+            const state = {
+                nodes: JSON.parse(JSON.stringify(nodes)),
+                currentNodeId: currentNodeId,
+                selectedNode: selectedNode ? JSON.parse(JSON.stringify(selectedNode)) : null
+            };
+            
+            history.push(state);
+            
+            // 限制历史记录长度
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+                // 当移除第一个元素时，索引也需要减1
+                if (historyIndex > 0) {
+                    historyIndex--;
+                }
+            } else {
+                historyIndex++;
+            }
+        }
+
+        // 初始化
+        function init() {
+            initCanvas();
+            initEvents();
+            loadFromUrl(); // 检查URL参数并加载思维导图
+            autoLoadFromGithub(); // 自动从GitHub加载
+            saveHistory(); // 保存初始状态到历史记录
+            
+            // 启动自动保存定时器（每30秒自动保存一次）
+            setInterval(autoSaveToCloud, 30000);
+            console.log('自动保存功能已启动，每30秒保存一次');
+        }
+
+        // 自动从GitHub仓库加载
+        async function autoLoadFromGithub() {
+            try {
+                // 添加时间戳参数避免缓存
+                const timestamp = new Date().getTime();
+                const url = `https://raw.githubusercontent.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${GITHUB_CONFIG.path}?t=${timestamp}`;
+                console.log('自动加载尝试:', url);
+                
+                const headers = {
+                    'Accept': 'application/json'
+                };
+                
+                // 如果有GitHub Token，添加认证头
+                if (GITHUB_TOKEN) {
+                    headers['Authorization'] = `token ${GITHUB_TOKEN}`;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: headers
+                });
+
+                console.log('自动加载响应状态:', response.status);
+
+                if (!response.ok) {
+                    console.log('GitHub仓库中尚未创建main.json文件 (状态码:', response.status + ')');
+                    return;
+                }
+
+                const text = await response.text();
+                
+                // 检查文件是否为空
+                if (!text || text.trim() === '') {
+                    console.log('main.json文件为空');
+                    return;
+                }
+
+                // 解析JSON
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    console.log('文件格式错误:', parseError);
+                    return;
+                }
+
+                // 加载数据
+                nodes = data.nodes || [];
+                currentNodeId = data.currentNodeId || (nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1);
+                render();
+                console.log('已自动从GitHub仓库加载关系图');
+            } catch (error) {
+                console.log('自动加载失败:', error);
+            }
+        }
+
+        // 初始化画布
+        function initCanvas() {
+            const canvas = document.getElementById('canvas');
+            canvas.addEventListener('click', function(e) {
+                if (!e.target.closest('.node')) {
+                    deselectNode();
+                }
+            });
+            
+            // 添加画布拖动功能
+            canvas.addEventListener('mousedown', function(e) {
+                // 只有在空白区域点击才触发画布拖动
+                if (!e.target.closest('.node')) {
+                    isCanvasDragging = true;
+                    canvasDragStartX = e.clientX;
+                    canvasDragStartY = e.clientY;
+                }
+            });
+            
+            // 添加画布触摸开始事件
+            canvas.addEventListener('touchstart', function(e) {
+                // 只有在空白区域触摸才触发画布拖动
+                if (!e.target.closest('.node')) {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    
+                    // 检测双击
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTapTime;
+                    if (tapLength < 300 && tapLength > 0) {
+                        // 双击检测到
+                        doubleTapDetected = true;
+                        // 双击后，长按触发画布拖动
+                        longPressTimer = setTimeout(function() {
+                            // 长按触发画布拖动
+                            isCanvasDragging = true;
+                            canvasDragStartX = touch.clientX;
+                            canvasDragStartY = touch.clientY;
+                        }, 300); // 300毫秒长按
+                    } else {
+                        // 单击，不触发任何操作
+                        doubleTapDetected = false;
+                    }
+                    lastTapTime = currentTime;
+                }
+            });
+        }
+
+        // 初始化全局事件
+        function initEvents() {
+            // 鼠标事件
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            
+            // 触摸事件
+            document.addEventListener('touchmove', onTouchMove, { passive: false });
+            document.addEventListener('touchend', onTouchEnd);
+        }
+
+        // 添加根节点
+        function addRootNode() {
+            const node = {
+                id: currentNodeId++,
+                text: '根节点',
+                x: 900,
+                y: 100,
+                parentId: null,
+                isNew: true
+            };
+            nodes.push(node);
+            render();
+            saveHistory(); // 保存历史记录
+        }
+
+        // 添加子节点
+        function addChildNode(parentId) {
+            const parent = nodes.find(n => n.id === parentId);
+            if (!parent) return;
+
+            const childCount = nodes.filter(n => n.parentId === parentId).length;
+            const distance = 180;
+            // 将子节点添加在父节点的下方，根据子节点数量水平偏移
+            const x = parent.x + (childCount - 1) * 60; // 每个子节点水平偏移60px
+            const y = parent.y + distance;
+
+            const node = {
+                id: currentNodeId++,
+                text: '子节点',
+                x: x,
+                y: y,
+                parentId: parentId,
+                isNew: true
+            };
+            nodes.push(node);
+            render();
+            saveHistory(); // 保存历史记录
+        }
+
+        // 删除节点
+        function deleteNode(nodeId) {
+            // 递归删除子节点
+            function deleteChildren(id) {
+                const children = nodes.filter(n => n.parentId === id);
+                children.forEach(child => {
+                    deleteChildren(child.id);
+                    nodes = nodes.filter(n => n.id !== child.id);
+                });
+            }
+
+            deleteChildren(nodeId);
+            nodes = nodes.filter(n => n.id !== nodeId);
+            deselectNode();
+            render();
+            saveHistory(); // 保存历史记录
+        }
+
+        // 编辑节点
+        function editNode(nodeId) {
+            const node = nodes.find(n => n.id === nodeId);
+            if (node) {
+                document.getElementById('nodeText').value = node.text || '';
+                document.getElementById('nodeNote').value = node.note || '';
+                document.getElementById('nodeForm').classList.remove('hidden');
+                window.currentEditingNodeId = nodeId;
+            }
+        }
+
+        // 保存节点
+        function saveNode() {
+            const nodeId = window.currentEditingNodeId;
+            const node = nodes.find(n => n.id === nodeId);
+            if (node) {
+                node.text = document.getElementById('nodeText').value;
+                node.note = document.getElementById('nodeNote').value;
+                render();
+                saveHistory(); // 保存历史记录
+            }
+            closeNodeForm();
+        }
+
+        // 关闭节点表单
+        function closeNodeForm() {
+            document.getElementById('nodeForm').classList.add('hidden');
+            window.currentEditingNodeId = null;
+        }
+
+        // 选择节点
+        function selectNode(nodeId) {
+            selectedNode = nodes.find(n => n.id === nodeId);
+            render();
+        }
+
+        // 取消选择节点
+        function deselectNode() {
+            selectedNode = null;
+            render();
+        }
+
+        // 编辑选中的节点
+        function editSelectedNode() {
+            if (selectedNode) {
+                editNode(selectedNode.id);
+            } else {
+                alert('请先选中一个节点');
+            }
+        }
+
+        // 缩放控制变量
+        let canvasScale = 1;
+
+        // 放大
+        function zoomIn() {
+            canvasScale += 0.1;
+            updateCanvasScale();
+        }
+
+        // 缩小
+        function zoomOut() {
+            if (canvasScale > 0.5) {
+                canvasScale -= 0.1;
+                updateCanvasScale();
+            }
+        }
+
+        // 重置缩放
+        function resetZoom() {
+            canvasScale = 1;
+            updateCanvasScale();
+        }
+
+        // 更新画布缩放
+        function updateCanvasScale() {
+            const canvas = document.getElementById('canvas');
+            canvas.style.transform = `scale(${canvasScale})`;
+            canvas.style.transformOrigin = '0 0';
+            
+            // 更新显示的缩放比例
+            const zoomLevelBtn = document.getElementById('zoomLevel');
+            if (zoomLevelBtn) {
+                zoomLevelBtn.textContent = `${Math.round(canvasScale * 100)}%`;
+            }
+        }
+
+        // 复位视图
+        function resetView() {
+            // 移动到最近的主节点（根节点）
+            const rootNode = nodes.find(node => node.parentId === null);
+            if (rootNode) {
+                // 计算画布容器的中心点
+                const canvasContainer = document.querySelector('.canvas-container');
+                const containerWidth = canvasContainer.clientWidth;
+                const containerHeight = canvasContainer.clientHeight;
+                const containerCenterX = containerWidth / 2;
+                const containerCenterY = containerHeight / 2;
+                
+                // 计算根节点的中心点
+                const nodeCenterX = rootNode.x + 60; // 节点宽度的一半
+                const nodeCenterY = rootNode.y + 20; // 节点高度的一半
+                
+                // 计算滚动位置，使根节点位于画布容器的中心
+                const scrollLeft = nodeCenterX - containerCenterX;
+                const scrollTop = nodeCenterY - containerCenterY;
+                
+                // 滚动到指定位置
+                canvasContainer.scrollLeft = scrollLeft;
+                canvasContainer.scrollTop = scrollTop;
+            }
+            
+            // 恢复默认缩放
+            canvasScale = 1;
+            updateCanvasScale();
+        }
+
+        // 鼠标移动事件
+        function onMouseMove(e) {
+            if (isDragging && selectedNode) {
+                const deltaX = e.clientX - dragStartX;
+                const deltaY = e.clientY - dragStartY;
+                
+                selectedNode.x = dragOffsetX + deltaX;
+                selectedNode.y = dragOffsetY + deltaY;
+                
+                // 不更新子节点位置，保持子节点不动
+                
+                // 立即重新渲染，确保节点显示
+                render();
+            } else if (isCanvasDragging) {
+                // 画布拖动逻辑 - 移动所有节点
+                const deltaX = e.clientX - canvasDragStartX;
+                const deltaY = e.clientY - canvasDragStartY;
+                
+                // 移动所有节点
+                nodes.forEach(node => {
+                    node.x += deltaX;
+                    node.y += deltaY;
+                });
+                
+                // 更新拖动起点
+                canvasDragStartX = e.clientX;
+                canvasDragStartY = e.clientY;
+                
+                // 立即重新渲染
+                render();
+            }
+        }
+
+        // 鼠标释放事件
+        function onMouseUp() {
+            if (isDragging || isCanvasDragging) {
+                saveHistory();
+            }
+            isDragging = false;
+            isCanvasDragging = false;
+            // 移除所有节点的拖动效果
+            document.querySelectorAll('.node').forEach(nodeElement => {
+                nodeElement.classList.remove('dragging');
+            });
+        }
+
+        // 触摸移动事件
+        function onTouchMove(e) {
+            e.preventDefault(); // 防止页面滚动
+            const touch = e.touches[0];
+            
+            if (selectedNode && isDragging) {
+                // 只有在拖动状态下才处理拖动逻辑
+                const deltaX = touch.clientX - dragStartX;
+                const deltaY = touch.clientY - dragStartY;
+                
+                selectedNode.x = dragOffsetX + deltaX;
+                selectedNode.y = dragOffsetY + deltaY;
+                
+                // 立即重新渲染
+                render();
+            } else if (isCanvasDragging) {
+                // 画布拖动逻辑 - 移动所有节点
+                const deltaX = touch.clientX - canvasDragStartX;
+                const deltaY = touch.clientY - canvasDragStartY;
+                
+                // 移动所有节点
+                nodes.forEach(node => {
+                    node.x += deltaX;
+                    node.y += deltaY;
+                });
+                
+                // 更新拖动起点
+                canvasDragStartX = touch.clientX;
+                canvasDragStartY = touch.clientY;
+                
+                // 立即重新渲染
+                render();
+            }
+        }
+
+        // 触摸结束事件
+        function onTouchEnd() {
+            if (isDragging || isCanvasDragging) {
+                saveHistory();
+            }
+            isDragging = false;
+            isCanvasDragging = false;
+            doubleTapDetected = false;
+            // 移除所有节点的拖动效果
+            document.querySelectorAll('.node').forEach(nodeElement => {
+                nodeElement.classList.remove('dragging');
+            });
+        }
+
+        // 更新子节点位置
+        function updateChildPositions(parentId) {
+            const parent = nodes.find(n => n.id === parentId);
+            if (!parent) return;
+
+            const children = nodes.filter(n => n.parentId === parentId);
+            children.forEach((child, index) => {
+                const distance = 180;
+                // 将子节点保持在父节点的下方，根据子节点数量水平偏移
+                child.x = parent.x + (index - 1) * 60; // 每个子节点水平偏移60px
+                child.y = parent.y + distance;
+                updateChildPositions(child.id);
+            });
+        }
+
+        // 渲染所有内容
+        function render() {
+            renderNodes();
+            renderEdges();
+        }
+
+        // 渲染节点
+        function renderNodes() {
+            const canvas = document.getElementById('canvas');
+            canvas.innerHTML = '';
+
+            nodes.forEach(node => {
+                const nodeElement = document.createElement('div');
+                nodeElement.className = 'node';
+                if (selectedNode && selectedNode.id === node.id) {
+                    nodeElement.classList.add('selected');
+                }
+                // 为新节点添加动画效果
+                if (node.isNew) {
+                    nodeElement.classList.add('new');
+                    // 动画结束后移除标记
+                    setTimeout(() => {
+                        delete node.isNew;
+                    }, 300);
+                }
+                nodeElement.style.left = node.x + 'px';
+                nodeElement.style.top = node.y + 'px';
+                nodeElement.style.position = 'absolute';
+                nodeElement.style.zIndex = '10';
+
+                // 创建节点内容
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'node-content';
+                contentDiv.textContent = node.text;
+                nodeElement.appendChild(contentDiv);
+
+                // 显示节点备注（如果有）
+                if (node.note) {
+                    const noteDiv = document.createElement('div');
+                    noteDiv.className = 'node-note';
+                    noteDiv.style.fontSize = '10px';
+                    noteDiv.style.color = '#666';
+                    noteDiv.style.marginTop = '4px';
+                    noteDiv.style.fontStyle = 'italic';
+                    noteDiv.style.whiteSpace = 'pre-wrap';
+                    noteDiv.style.wordBreak = 'break-word';
+                    noteDiv.textContent = node.note;
+                    nodeElement.appendChild(noteDiv);
+                }
+
+                // 创建操作按钮容器
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'node-actions';
+                actionsDiv.style.position = 'relative';
+                actionsDiv.style.zIndex = '100';
+
+                // 添加子节点按钮
+                const addBtn = document.createElement('button');
+                addBtn.type = 'button';
+                addBtn.className = 'action-btn action-add';
+                addBtn.textContent = '+';
+                addBtn.style.position = 'relative';
+                addBtn.style.zIndex = '200';
+                addBtn.style.cursor = 'pointer';
+                addBtn.style.margin = '0 2px';
+                addBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    console.log('添加子节点按钮点击:', node.id);
+                    addChildNode(node.id);
+                };
+                actionsDiv.appendChild(addBtn);
+
+                // 删除节点按钮
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'action-btn action-delete';
+                deleteBtn.textContent = '×';
+                deleteBtn.style.position = 'relative';
+                deleteBtn.style.zIndex = '200';
+                deleteBtn.style.cursor = 'pointer';
+                deleteBtn.style.margin = '0 2px';
+                deleteBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    console.log('删除节点按钮点击:', node.id);
+                    deleteNode(node.id);
+                };
+                actionsDiv.appendChild(deleteBtn);
+
+                nodeElement.appendChild(actionsDiv);
+
+                // 添加拖拽功能
+                nodeElement.addEventListener('mousedown', function(e) {
+                    // 检查是否点击了按钮
+                    if (e.target.closest('.action-btn')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                    selectNode(node.id);
+                    isDragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragOffsetX = node.x;
+                    dragOffsetY = node.y;
+                    // 添加拖动效果
+                    nodeElement.classList.add('dragging');
+                });
+                
+                // 添加触摸开始事件
+                nodeElement.addEventListener('touchstart', function(e) {
+                    // 检查是否触摸了按钮
+                    if (e.target.closest('.action-btn')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                    const touch = e.touches[0];
+                    selectNode(node.id);
+                    // 记录初始位置
+                    dragStartX = touch.clientX;
+                    dragStartY = touch.clientY;
+                    dragOffsetX = node.x;
+                    dragOffsetY = node.y;
+                    
+                    // 检测双击
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTapTime;
+                    if (tapLength < 300 && tapLength > 0) {
+                        // 双击检测到，直接进入拖动状态
+                        isDragging = true;
+                        nodeElement.classList.add('dragging');
+                    }
+                    lastTapTime = currentTime;
+                });
+                
+
+
+                // 添加点击选择功能
+                nodeElement.addEventListener('click', function(e) {
+                    // 检查是否点击了按钮
+                    if (e.target.closest('.action-btn')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                    selectNode(node.id);
+                });
+
+                // 添加右键菜单功能
+                nodeElement.addEventListener('contextmenu', function(e) {
+                    // 阻止默认右键菜单
+                    e.preventDefault();
+                    // 检查是否点击了按钮
+                    if (e.target.closest('.action-btn')) {
+                        return;
+                    }
+                    e.stopPropagation();
+                    // 选中节点并打开编辑表单
+                    selectNode(node.id);
+                    editNode(node.id);
+                });
+
+                canvas.appendChild(nodeElement);
+            });
+        }
+
+        // 渲染连线
+        function renderEdges() {
+            const canvas = document.getElementById('canvas');
+
+            nodes.forEach(node => {
+                if (node.parentId) {
+                    const parent = nodes.find(n => n.id === node.parentId);
+                    if (parent) {
+                        const edge = document.createElement('div');
+                        edge.className = 'edge';
+
+                        // 节点尺寸
+                        const nodeWidth = 120;
+                        const nodeHeight = 40;
+                        
+                        // 计算节点中心点
+                        const parentCenterX = parent.x + nodeWidth / 2;
+                        const parentCenterY = parent.y + nodeHeight / 2;
+                        const nodeCenterX = node.x + nodeWidth / 2;
+                        const nodeCenterY = node.y + nodeHeight / 2;
+
+                        // 计算连线方向
+                        const dx = nodeCenterX - parentCenterX;
+                        const dy = nodeCenterY - parentCenterY;
+
+                        // 计算连线参数（连接两个节点的中心）
+                        const length = Math.sqrt(dx * dx + dy * dy);
+                        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+                        edge.style.width = length + 'px';
+                        edge.style.height = '2px';
+                        edge.style.left = parentCenterX + 'px';
+                        edge.style.top = parentCenterY + 'px';
+                        edge.style.transform = `rotate(${angle}deg)`;
+
+                        canvas.appendChild(edge);
+                    }
+                }
+            });
+        }
+
+        // 清空画布
+        function clearCanvas() {
+            if (confirm('确定要清空画布吗？')) {
+                nodes = [];
+                selectedNode = null;
+                currentNodeId = 1;
+                render();
+                saveHistory(); // 保存历史记录
+            }
+        }
+
+        // 显示保存进度
+        function showSaveProgress() {
+            document.getElementById('saveProgressOverlay').classList.remove('hidden');
+        }
+
+        // 更新保存进度
+        function updateSaveProgress(percent, text) {
+            document.getElementById('saveProgressBar').style.width = percent + '%';
+            document.getElementById('saveProgressText').textContent = text;
+        }
+
+        // 隐藏保存进度
+        function hideSaveProgress() {
+            document.getElementById('saveProgressOverlay').classList.add('hidden');
+        }
+
+        // 显示token输入表单
+        function showTokenForm() {
+            document.getElementById('tokenForm').classList.remove('hidden');
+        }
+
+        // 关闭token输入表单
+        function closeTokenForm() {
+            document.getElementById('tokenForm').classList.add('hidden');
+        }
+
+        // 保存到GitHub仓库的核心函数
+        async function saveToCloudWithToken() {
+            const token = document.getElementById('githubToken').value;
+            if (!token) {
+                alert('请输入GitHub Token');
+                return;
+            }
+
+            closeTokenForm();
+            showSaveProgress();
+            updateSaveProgress(10, '准备数据...');
+
+            try {
+                // 准备数据
+                const data = JSON.stringify({ nodes, currentNodeId }, null, 2);
+                const content = btoa(unescape(encodeURIComponent(data))); // Base64编码
+                updateSaveProgress(30, '数据准备完成');
+
+                // 首先获取文件的当前SHA（如果文件存在）
+                let sha = null;
+                updateSaveProgress(40, '检查文件状态...');
+                try {
+                    const getResponse = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`, {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (getResponse.ok) {
+                        const fileData = await getResponse.json();
+                        sha = fileData.sha;
+                    }
+                } catch (e) {
+                    console.log('文件不存在，将创建新文件');
+                }
+
+                // 创建或更新文件
+                updateSaveProgress(60, '上传数据...');
+                const body = {
+                    message: '更新关系图数据',
+                    content: content,
+                    branch: GITHUB_CONFIG.branch
+                };
+                if (sha) {
+                    body.sha = sha;
+                }
+
+                const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                updateSaveProgress(90, '处理响应...');
+
+                if (response.ok) {
+                    updateSaveProgress(100, '保存成功！');
+                    setTimeout(() => {
+                        hideSaveProgress();
+                        alert('关系图已保存到GitHub仓库！\n请等待1-2分钟后刷新页面查看更新。');
+                    }, 500);
+                } else {
+                    updateSaveProgress(100, '保存失败');
+                    response.json().then(error => {
+                        setTimeout(() => {
+                            hideSaveProgress();
+                            alert('保存失败：' + (error.message || '未知错误'));
+                        }, 500);
+                    });
+                }
+            } catch (error) {
+                console.error('保存失败:', error);
+                updateSaveProgress(100, '保存失败');
+                setTimeout(() => {
+                    hideSaveProgress();
+                    alert('保存失败：' + error.message);
+                }, 500);
+            }
+        }
+
+        // 自动保存到GitHub仓库
+        async function autoSaveToCloud() {
+            if (!GITHUB_TOKEN) {
+                console.log('GitHub Token未配置，无法自动保存');
+                return;
+            }
+
+            try {
+                // 准备数据
+                const data = JSON.stringify({ nodes, currentNodeId }, null, 2);
+                const content = btoa(unescape(encodeURIComponent(data))); // Base64编码
+
+                // 首先获取文件的当前SHA（如果文件存在）
+                let sha = null;
+                try {
+                    const getResponse = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`, {
+                        headers: {
+                            'Authorization': `token ${GITHUB_TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (getResponse.ok) {
+                        const fileData = await getResponse.json();
+                        sha = fileData.sha;
+                    }
+                } catch (e) {
+                    console.log('文件不存在，将创建新文件');
+                }
+
+                // 创建或更新文件
+                const body = {
+                    message: '自动更新关系图数据',
+                    content: content,
+                    branch: GITHUB_CONFIG.branch
+                };
+                if (sha) {
+                    body.sha = sha;
+                }
+
+                const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    console.log('自动保存成功');
+                } else {
+                    const error = await response.json();
+                    console.error('自动保存失败：', error.message || '未知错误');
+                }
+            } catch (error) {
+                console.error('自动保存失败:', error);
+            }
+        }
+
+        // 保存到GitHub仓库（使用预配置的Token自动保存）
+        async function saveToCloud() {
+            console.log('开始保存到GitHub...');
+            console.log('Token长度:', GITHUB_TOKEN ? GITHUB_TOKEN.length : 0);
+            console.log('仓库配置:', GITHUB_CONFIG);
+            
+            if (!GITHUB_TOKEN) {
+                alert('GitHub Token未配置');
+                return;
+            }
+
+            showSaveProgress();
+            updateSaveProgress(10, '准备数据...');
+
+            try {
+                // 准备数据
+                const data = JSON.stringify({ nodes, currentNodeId }, null, 2);
+                const content = btoa(unescape(encodeURIComponent(data))); // Base64编码
+                console.log('数据准备完成，内容长度:', content.length);
+                updateSaveProgress(30, '数据准备完成');
+
+                // 首先获取文件的当前SHA（如果文件存在）
+                let sha = null;
+                updateSaveProgress(40, '检查文件状态...');
+                const getUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+                console.log('检查文件URL:', getUrl);
+                
+                try {
+                    const getResponse = await fetch(getUrl, {
+                        headers: {
+                            'Authorization': `token ${GITHUB_TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    console.log('检查文件响应状态:', getResponse.status);
+                    
+                    if (getResponse.ok) {
+                        const fileData = await getResponse.json();
+                        sha = fileData.sha;
+                        console.log('获取到文件SHA:', sha);
+                    } else {
+                        const errorText = await getResponse.text();
+                        console.log('文件不存在或无法访问:', errorText);
+                    }
+                } catch (e) {
+                    console.log('检查文件时出错:', e);
+                }
+
+                // 创建或更新文件
+                updateSaveProgress(60, '上传数据...');
+                const body = {
+                    message: '更新关系图数据',
+                    content: content,
+                    branch: GITHUB_CONFIG.branch
+                };
+                if (sha) {
+                    body.sha = sha;
+                }
+                
+                console.log('请求体:', JSON.stringify(body, null, 2));
+
+                const putUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
+                console.log('上传URL:', putUrl);
+                
+                const response = await fetch(putUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                console.log('上传响应状态:', response.status);
+                updateSaveProgress(90, '处理响应...');
+
+                if (response.ok) {
+                    updateSaveProgress(100, '保存成功！');
+                    setTimeout(() => {
+                        hideSaveProgress();
+                        alert('关系图已保存到GitHub仓库！\n请等待1-2分钟后刷新页面查看更新。');
+                    }, 500);
+                } else {
+                    const errorText = await response.text();
+                    console.error('保存失败响应状态:', response.status);
+                    console.error('保存失败响应文本:', errorText);
+                    
+                    let errorMessage = '未知错误';
+                    let errorDetails = '';
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.message || '未知错误';
+                        errorDetails = JSON.stringify(errorData, null, 2);
+                        console.error('解析后的错误数据:', errorData);
+                    } catch (e) {
+                        errorMessage = errorText || '未知错误';
+                        errorDetails = errorText;
+                    }
+                    
+                    updateSaveProgress(100, '保存失败');
+                    setTimeout(() => {
+                        hideSaveProgress();
+                        alert('保存失败：' + errorMessage + '\n\n状态码: ' + response.status + '\n\n详细信息:\n' + errorDetails.substring(0, 500));
+                    }, 500);
+                }
+            } catch (error) {
+                console.error('保存失败:', error);
+                updateSaveProgress(100, '保存失败');
+                setTimeout(() => {
+                    hideSaveProgress();
+                    alert('保存失败：' + error.message + '\n\n请检查浏览器控制台(F12)查看详细错误信息。');
+                }, 500);
+            }
+        }
+
+        // 保存到本地
+        function saveToLocal() {
+            const data = JSON.stringify({ nodes, currentNodeId });
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mindmap.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('关系图已保存到本地文件');
+        }
+
+        // 从本地加载
+        function loadFromLocal() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        try {
+                            const data = JSON.parse(event.target.result);
+                            nodes = data.nodes || [];
+                            currentNodeId = data.currentNodeId || Math.max(...nodes.map(n => n.id)) + 1;
+                            render();
+                            alert('关系图已从本地加载');
+                        } catch (error) {
+                            alert('文件格式错误');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        // 从GitHub仓库加载思维导图
+        async function loadFromCloud() {
+            try {
+                // 添加时间戳参数避免缓存
+                const timestamp = new Date().getTime();
+                const url = `https://raw.githubusercontent.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${GITHUB_CONFIG.path}?t=${timestamp}`;
+                console.log('尝试加载:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                console.log('响应状态:', response.status);
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('GitHub仓库中尚未创建main.json文件，请先保存一次\n\n请求的URL: ' + url);
+                    } else {
+                        alert('加载失败：' + response.statusText + ' (状态码: ' + response.status + ')');
+                    }
+                    return;
+                }
+
+                const text = await response.text();
+                console.log('文件内容长度:', text.length);
+                
+                // 检查文件是否为空
+                if (!text || text.trim() === '') {
+                    alert('main.json文件为空');
+                    return;
+                }
+
+                // 解析JSON
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    alert('文件格式错误：' + parseError.message);
+                    return;
+                }
+
+                // 加载数据
+                nodes = data.nodes || [];
+                currentNodeId = data.currentNodeId || (nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1);
+                render();
+                saveHistory(); // 保存加载后的状态
+                alert('已从GitHub仓库加载关系图');
+            } catch (error) {
+                console.error('加载失败:', error);
+                alert('加载失败：' + error.message);
+            }
+        }
+
+        // 生成分享码
+        function generateShareCode() {
+            // 1. 优化数据结构，减少冗余
+            const optimizedData = {
+                n: nodes.map(node => ({
+                    i: node.id,
+                    t: node.text,
+                    x: node.x,
+                    y: node.y,
+                    p: node.parentId,
+                    nt: node.note // 包含节点备注
+                })),
+                c: currentNodeId
+            };
+            
+            // 2. 序列化并压缩
+            const data = JSON.stringify(optimizedData).replace(/\s+/g, '');
+            
+            // 3. 使用更高效的编码：Base64url
+            const encodedData = btoa(unescape(encodeURIComponent(data)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+            
+            // 4. 再次压缩：使用更紧凑的编码
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+            let result = '';
+            for (let i = 0; i < encodedData.length; i += 3) {
+                const chunk = encodedData.substr(i, 3);
+                if (chunk.length === 3) {
+                    const val = (chars.indexOf(chunk[0]) << 12) | (chars.indexOf(chunk[1]) << 6) | chars.indexOf(chunk[2]);
+                    result += chars[(val >> 12) & 63] + chars[(val >> 6) & 63] + chars[val & 63];
+                } else {
+                    result += chunk;
+                }
+            }
+            
+            // 复制到剪贴板
+            navigator.clipboard.writeText(result).then(() => {
+                alert('分享码已复制到剪贴板，您可以在其他设备上粘贴此分享码来导入思维导图');
+            }).catch(err => {
+                // 如果剪贴板复制失败，显示分享码
+                prompt('复制此分享码到其他设备粘贴：', result);
+            });
+        }
+
+        // 导入分享码
+        function importShareCode() {
+            const shareCode = prompt('请输入分享码：');
+            if (shareCode) {
+                try {
+                    // 1. 解码压缩编码
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+                    let encodedData = '';
+                    for (let i = 0; i < shareCode.length; i += 3) {
+                        const chunk = shareCode.substr(i, 3);
+                        if (chunk.length === 3) {
+                            const val = (chars.indexOf(chunk[0]) << 12) | (chars.indexOf(chunk[1]) << 6) | chars.indexOf(chunk[2]);
+                            encodedData += chars[(val >> 12) & 63] + chars[(val >> 6) & 63] + chars[val & 63];
+                        } else {
+                            encodedData += chunk;
+                        }
+                    }
+                    
+                    // 2. 对分享码进行Base64url解码
+                    let decodedData;
+                    try {
+                        const base64DecodedData = atob(encodedData
+                            .replace(/-/g, '+')
+                            .replace(/_/g, '/')
+                            .padEnd(encodedData.length + (4 - encodedData.length % 4) % 4, '='));
+                        // 3. 对结果进行URI解码
+                        decodedData = decodeURIComponent(escape(base64DecodedData));
+                    } catch (decodeError) {
+                        throw new Error('分享码格式错误');
+                    }
+                    
+                    // 4. 解析JSON
+                    let parsedData;
+                    try {
+                        parsedData = JSON.parse(decodedData);
+                    } catch (parseError) {
+                        throw new Error('分享码数据格式错误');
+                    }
+                    
+                    // 5. 处理节点数据
+                    const loadedNodes = (parsedData.n || []).map(node => ({
+                        id: node.i,
+                        text: node.t,
+                        x: node.x,
+                        y: node.y,
+                        parentId: node.p,
+                        note: node.nt // 还原节点备注
+                    }));
+                    nodes = loadedNodes;
+                    
+                    // 6. 计算 currentNodeId
+                    if (parsedData.c) {
+                        currentNodeId = parsedData.c;
+                    } else if (loadedNodes.length > 0) {
+                        const maxId = Math.max(...loadedNodes.map(n => n.id));
+                        currentNodeId = maxId + 1;
+                    } else {
+                        currentNodeId = 1;
+                    }
+                    
+                    render();
+                    saveHistory(); // 保存加载后的状态
+                    alert('已从分享码加载思维导图');
+                } catch (error) {
+                    alert('从分享码加载失败，请检查分享码是否正确');
+                }
+            }
+        }
+
+        // 从URL参数加载思维导图（保留此功能以兼容旧链接）
+        function loadFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const dataParam = urlParams.get('data');
+            if (dataParam) {
+                try {
+                    // 1. 解码压缩编码
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+                    let encodedData = '';
+                    for (let i = 0; i < dataParam.length; i += 3) {
+                        const chunk = dataParam.substr(i, 3);
+                        if (chunk.length === 3) {
+                            const val = (chars.indexOf(chunk[0]) << 12) | (chars.indexOf(chunk[1]) << 6) | chars.indexOf(chunk[2]);
+                            encodedData += chars[(val >> 12) & 63] + chars[(val >> 6) & 63] + chars[val & 63];
+                        } else {
+                            encodedData += chunk;
+                        }
+                    }
+                    
+                    // 2. 对URL参数进行Base64url解码
+                    let decodedData;
+                    try {
+                        const base64DecodedData = atob(encodedData
+                            .replace(/-/g, '+')
+                            .replace(/_/g, '/')
+                            .padEnd(encodedData.length + (4 - encodedData.length % 4) % 4, '='));
+                        // 3. 对结果进行URI解码
+                        decodedData = decodeURIComponent(escape(base64DecodedData));
+                    } catch (decodeError) {
+                        throw new Error('数据解码失败');
+                    }
+                    
+                    // 4. 解析JSON
+                    let parsedData;
+                    try {
+                        parsedData = JSON.parse(decodedData);
+                    } catch (parseError) {
+                        throw new Error('JSON解析失败');
+                    }
+                    
+                    // 5. 处理节点数据
+                    let loadedNodes = [];
+                    if (parsedData.n) {
+                        // 新格式
+                        loadedNodes = parsedData.n.map(node => ({
+                            id: node.i,
+                            text: node.t,
+                            x: node.x,
+                            y: node.y,
+                            parentId: node.p,
+                            note: node.nt // 还原节点备注
+                        }));
+                    } else if (parsedData.nodes) {
+                        // 旧格式兼容
+                        loadedNodes = parsedData.nodes;
+                    }
+                    nodes = loadedNodes;
+                    
+                    // 6. 计算 currentNodeId
+                    if (parsedData.c) {
+                        currentNodeId = parsedData.c;
+                    } else if (parsedData.currentNodeId) {
+                        currentNodeId = parsedData.currentNodeId;
+                    } else if (loadedNodes.length > 0) {
+                        const maxId = Math.max(...loadedNodes.map(n => n.id));
+                        currentNodeId = maxId + 1;
+                    } else {
+                        currentNodeId = 1;
+                    }
+                    
+                    render();
+                    saveHistory(); // 保存加载后的状态
+                    alert('已从分享链接加载思维导图');
+                } catch (error) {
+                    alert('从分享链接加载失败，请检查链接是否正确');
+                }
+            }
+        }
+
+        // 撤回操作
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                const state = history[historyIndex];
+                nodes = JSON.parse(JSON.stringify(state.nodes));
+                currentNodeId = state.currentNodeId;
+                selectedNode = state.selectedNode ? JSON.parse(JSON.stringify(state.selectedNode)) : null;
+                render();
+            }
+        }
+
+        // 恢复操作
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                const state = history[historyIndex];
+                nodes = JSON.parse(JSON.stringify(state.nodes));
+                currentNodeId = state.currentNodeId;
+                selectedNode = state.selectedNode ? JSON.parse(JSON.stringify(state.selectedNode)) : null;
+                render();
+            }
+        }
+
+        // 初始化时从云端加载
+        function initFromCloud() {
+            const data = localStorage.getItem('mindmap-data');
+            if (data) {
+                try {
+                    const parsedData = JSON.parse(data);
+                    nodes = parsedData.nodes || [];
+                    currentNodeId = parsedData.currentNodeId || 1;
+                } catch (error) {
+                    console.error('从云端加载失败:', error);
+                }
+            }
+        }
+
+        // 键盘快捷键支持
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Z 撤回
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            }
+            // Ctrl+Y 恢复
+            if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                redo();
+            }
+            // Ctrl+Shift+Z 恢复（另一种常见快捷键）
+            if (e.ctrlKey && e.shiftKey && e.key === 'z') {
+                e.preventDefault();
+                redo();
+            }
+        });
+
+        // 导出图片功能
+        function exportImage() {
+            const canvas = document.getElementById('canvas');
+            
+            // 创建一个新的canvas元素用于导出
+            const exportCanvas = document.createElement('canvas');
+            const ctx = exportCanvas.getContext('2d');
+            
+            // 计算节点实际大小和画布边界
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            const nodeSizes = {};
+            
+            // 设置字体
+            ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+            
+            // 计算每个节点的实际大小（与网站内一致）
+            nodes.forEach(node => {
+                // 处理文本换行
+                const lineHeight = 16; // 网站内实际行高
+                const padding = 12; // 网站内实际padding
+                const minWidth = 120; // 网站内最小宽度
+                const maxWidth = 200; // 网站内最大宽度
+                
+                // 分割文本为单词
+                const words = node.text.split(' ');
+                let lines = [];
+                let currentLine = '';
+                
+                for (let word of words) {
+                    const testLine = currentLine ? currentLine + ' ' + word : word;
+                    const metrics = ctx.measureText(testLine);
+                    
+                    if (metrics.width > maxWidth - padding * 2) {
+                        lines.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                if (currentLine) {
+                    lines.push(currentLine);
+                }
+                
+                // 计算节点宽度和高度
+                let nodeWidth = Math.max(minWidth, Math.min(maxWidth, ctx.measureText(lines[0]).width + padding * 2));
+                let nodeHeight = lines.length * lineHeight + padding * 2;
+                
+                // 如果有备注，增加高度
+                if (node.note) {
+                    const noteLineHeight = 12; // 备注行高
+                    const noteLines = node.note.split('\n');
+                    nodeHeight += noteLines.length * noteLineHeight + 4; // 4px margin
+                }
+                
+                // 存储节点大小
+                nodeSizes[node.id] = { width: nodeWidth, height: nodeHeight };
+                
+                // 更新画布边界
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + nodeWidth);
+                maxY = Math.max(maxY, node.y + nodeHeight);
+            });
+            
+            // 添加边距
+            const padding = 50;
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
+            
+            // 设置导出canvas的尺寸
+            const width = maxX - minX;
+            const height = maxY - minY;
+            exportCanvas.width = width;
+            exportCanvas.height = height;
+            
+            // 填充白色背景
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制连接线
+            ctx.strokeStyle = '#95a5a6';
+            ctx.lineWidth = 2;
+            nodes.forEach(node => {
+                if (node.parentId) {
+                    const parent = nodes.find(n => n.id === node.parentId);
+                    if (parent) {
+                        const nodeSize = nodeSizes[node.id];
+                        const parentSize = nodeSizes[parent.id];
+                        
+                        // 计算连接线的起点和终点（节点中心）
+                        const startX = parent.x + parentSize.width / 2 - minX;
+                        const startY = parent.y + parentSize.height / 2 - minY;
+                        const endX = node.x + nodeSize.width / 2 - minX;
+                        const endY = node.y + nodeSize.height / 2 - minY;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(startX, startY);
+                        ctx.lineTo(endX, endY);
+                        ctx.stroke();
+                        
+                        // 绘制箭头
+                        const angle = Math.atan2(endY - startY, endX - startX);
+                        const arrowLength = 10;
+                        ctx.beginPath();
+                        ctx.moveTo(endX, endY);
+                        ctx.lineTo(
+                            endX - arrowLength * Math.cos(angle - Math.PI / 6),
+                            endY - arrowLength * Math.sin(angle - Math.PI / 6)
+                        );
+                        ctx.moveTo(endX, endY);
+                        ctx.lineTo(
+                            endX - arrowLength * Math.cos(angle + Math.PI / 6),
+                            endY - arrowLength * Math.sin(angle + Math.PI / 6)
+                        );
+                        ctx.stroke();
+                    }
+                }
+            });
+            
+            // 绘制节点
+            nodes.forEach(node => {
+                // 绘制节点背景
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#3498db';
+                ctx.lineWidth = 2;
+                
+                const nodeSize = nodeSizes[node.id];
+                const nodeX = node.x - minX;
+                const nodeY = node.y - minY;
+                const nodeWidth = nodeSize.width;
+                const nodeHeight = nodeSize.height;
+                
+                // 绘制圆角矩形
+                ctx.beginPath();
+                ctx.roundRect(nodeX, nodeY, nodeWidth, nodeHeight, 8);
+                ctx.fill();
+                ctx.stroke();
+                
+                // 绘制节点文本
+                ctx.fillStyle = '#333333';
+                ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                
+                // 处理文本换行
+                const padding = 12;
+                const maxLineWidth = nodeWidth - padding * 2;
+                const lineHeight = 16;
+                
+                // 分割文本为单词
+                const words = node.text.split(' ');
+                let lines = [];
+                let currentLine = '';
+                
+                for (let word of words) {
+                    const testLine = currentLine ? currentLine + ' ' + word : word;
+                    const metrics = ctx.measureText(testLine);
+                    
+                    if (metrics.width > maxLineWidth) {
+                        lines.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                if (currentLine) {
+                    lines.push(currentLine);
+                }
+                
+                // 绘制文本行
+                let startY = nodeY + padding;
+                lines.forEach((line, index) => {
+                    ctx.fillText(line, nodeX + nodeWidth / 2, startY + index * lineHeight);
+                });
+                
+                // 绘制节点备注（与网站内样式一致）
+                if (node.note) {
+                    ctx.fillStyle = '#666666';
+                    ctx.font = '10px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+                    ctx.fontStyle = 'italic';
+                    const noteLineHeight = 12;
+                    const noteLines = node.note.split('\n');
+                    startY += lines.length * lineHeight + 4; // 4px margin
+                    noteLines.forEach((line, index) => {
+                        ctx.fillText(line, nodeX + nodeWidth / 2, startY + index * noteLineHeight);
+                    });
+                }
+            });
+            
+            // 导出图片
+            try {
+                const dataUrl = exportCanvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = '思维导图_' + new Date().getTime() + '.png';
+                link.href = dataUrl;
+                link.click();
+                alert('图片已导出');
+            } catch (error) {
+                console.error('导出图片失败:', error);
+                alert('导出图片失败，请重试');
+            }
+        }
+
+        // 页面加载完成后初始化
+        window.onload = init;
+    </script>
+</body>
+</html>
