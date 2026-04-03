@@ -539,7 +539,7 @@
         };
 
         // GitHub Token（自动保存时使用）
-        const GITHUB_TOKEN = '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';
+        const GITHUB_TOKEN = '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';
         
         // 保存历史记录
         function saveHistory() {
@@ -1090,9 +1090,12 @@
                     if (e.target.closest('.action-btn')) {
                         return;
                     }
+                    e.preventDefault();
                     e.stopPropagation();
                     const touch = e.touches[0];
-                    selectNode(node.id);
+                    
+                    // 立即选择节点
+                    selectedNode = node;
                     // 记录初始位置
                     dragStartX = touch.clientX;
                     dragStartY = touch.clientY;
@@ -1102,6 +1105,9 @@
                     // 直接进入拖动状态，无需双击
                     isDragging = true;
                     nodeElement.classList.add('dragging');
+                    
+                    // 立即重新渲染
+                    render();
                 });
                 
 
