@@ -418,8 +418,8 @@
                 <button class="btn btn-secondary" onclick="redo()">恢复 (Ctrl+Y)</button>
             </div>
             <div class="tool-group">
-                <button class="btn btn-secondary" onclick="saveToCloud()">快速保存</button>
-                <button class="btn btn-secondary" onclick="loadFromCloud()">快速加载</button>
+                <button class="btn btn-secondary" onclick="saveToCloud()">保存到GitHub</button>
+                <button class="btn btn-secondary" onclick="loadFromCloud()">从GitHub加载</button>
                 <button class="btn btn-secondary" onclick="saveToLocal()">保存到本地</button>
                 <button class="btn btn-secondary" onclick="loadFromLocal()">从本地加载</button>
             </div>
@@ -489,6 +489,14 @@
         let historyIndex = -1;
         const MAX_HISTORY = 50;
         
+        // GitHub配置 - 请修改以下配置为您的仓库信息
+        const GITHUB_CONFIG = {
+            owner: 'linhexing2',  // GitHub用户名
+            repo: 'linhexing2.github.io',  // 仓库名
+            path: 'main.json',  // 文件路径
+            branch: 'main'  // 分支名
+        };
+        
         // 保存历史记录
         function saveHistory() {
             // 限制历史记录数量
@@ -519,11 +527,55 @@
 
         // 初始化
         function init() {
-            initFromCloud();
             initCanvas();
             initEvents();
             loadFromUrl(); // 检查URL参数并加载思维导图
+            autoLoadFromGithub(); // 自动从GitHub加载
             saveHistory(); // 保存初始状态到历史记录
+        }
+
+        // 自动从GitHub仓库加载
+        async function autoLoadFromGithub() {
+            try {
+                // 添加时间戳参数避免缓存
+                const timestamp = new Date().getTime();
+                const response = await fetch(`https://raw.githubusercontent.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${GITHUB_CONFIG.path}?t=${timestamp}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    console.log('GitHub仓库中尚未创建main.json文件');
+                    return;
+                }
+
+                const text = await response.text();
+                
+                // 检查文件是否为空
+                if (!text || text.trim() === '') {
+                    console.log('main.json文件为空');
+                    return;
+                }
+
+                // 解析JSON
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    console.log('文件格式错误:', parseError);
+                    return;
+                }
+
+                // 加载数据
+                nodes = data.nodes || [];
+                currentNodeId = data.currentNodeId || (nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1);
+                render();
+                console.log('已自动从GitHub仓库加载关系图');
+            } catch (error) {
+                console.log('自动加载失败:', error);
+            }
         }
 
         // 初始化画布
@@ -1084,11 +1136,65 @@
             }
         }
 
-        // 保存到云端
-        function saveToCloud() {
-            const data = JSON.stringify({ nodes, currentNodeId });
-            localStorage.setItem('mindmap-data', data);
-            alert('关系图已保存到云端');
+        // 保存到GitHub仓库
+        async function saveToCloud() {
+            const token = prompt('请输入GitHub Personal Access Token（需要repo权限）：');
+            if (!token) {
+                alert('取消保存');
+                return;
+            }
+
+            const data = JSON.stringify({ nodes, currentNodeId }, null, 2);
+            const content = btoa(unescape(encodeURIComponent(data))); // Base64编码
+
+            try {
+                // 首先获取文件的当前SHA（如果文件存在）
+                let sha = null;
+                try {
+                    const getResponse = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`, {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (getResponse.ok) {
+                        const fileData = await getResponse.json();
+                        sha = fileData.sha;
+                    }
+                } catch (e) {
+                    console.log('文件不存在，将创建新文件');
+                }
+
+                // 创建或更新文件
+                const body = {
+                    message: '更新关系图数据',
+                    content: content,
+                    branch: GITHUB_CONFIG.branch
+                };
+                if (sha) {
+                    body.sha = sha;
+                }
+
+                const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    alert('关系图已保存到GitHub仓库！\n请等待1-2分钟后刷新页面查看更新。');
+                } else {
+                    const error = await response.json();
+                    alert('保存失败：' + (error.message || '未知错误'));
+                }
+            } catch (error) {
+                console.error('保存失败:', error);
+                alert('保存失败：' + error.message);
+            }
         }
 
         // 保存到本地
@@ -1130,21 +1236,53 @@
             input.click();
         }
 
-        // 从云端加载思维导图
-        function loadFromCloud() {
-            const data = localStorage.getItem('mindmap-data');
-            if (data) {
-                try {
-                    const parsedData = JSON.parse(data);
-                    nodes = parsedData.nodes || [];
-                    currentNodeId = parsedData.currentNodeId || 1;
-                    render();
-                    alert('已从云端加载关系图');
-                } catch (error) {
-                    alert('云端数据格式错误');
+        // 从GitHub仓库加载思维导图
+        async function loadFromCloud() {
+            try {
+                // 添加时间戳参数避免缓存
+                const timestamp = new Date().getTime();
+                const response = await fetch(`https://raw.githubusercontent.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${GITHUB_CONFIG.path}?t=${timestamp}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        alert('GitHub仓库中尚未创建main.json文件，请先保存一次');
+                    } else {
+                        alert('加载失败：' + response.statusText);
+                    }
+                    return;
                 }
-            } else {
-                alert('云端没有保存的关系图');
+
+                const text = await response.text();
+                
+                // 检查文件是否为空
+                if (!text || text.trim() === '') {
+                    alert('main.json文件为空');
+                    return;
+                }
+
+                // 解析JSON
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    alert('文件格式错误：' + parseError.message);
+                    return;
+                }
+
+                // 加载数据
+                nodes = data.nodes || [];
+                currentNodeId = data.currentNodeId || (nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1);
+                render();
+                saveHistory(); // 保存加载后的状态
+                alert('已从GitHub仓库加载关系图');
+            } catch (error) {
+                console.error('加载失败:', error);
+                alert('加载失败：' + error.message);
             }
         }
 
