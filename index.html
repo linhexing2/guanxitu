@@ -491,6 +491,20 @@
         </div>
     </div>
 
+    <div class="form-overlay hidden" id="shareCodeForm">
+        <div class="form-container">
+            <h2>导入分享码</h2>
+            <div class="form-group">
+                <label for="shareCodeInput">分享码：</label>
+                <input type="text" id="shareCodeInput" placeholder="输入分享码" style="width: 100%; font-family: monospace;">
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeShareCodeForm()">取消</button>
+                <button class="btn btn-primary" onclick="importShareCodeWithForm()">导入</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 全局变量
         let nodes = [];
@@ -525,7 +539,7 @@
         };
 
         // GitHub Token（自动保存时使用）
-        const GITHUB_TOKEN = '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';
+        const GITHUB_TOKEN = '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';
         
         // 保存历史记录
         function saveHistory() {
@@ -562,10 +576,6 @@
             loadFromUrl(); // 检查URL参数并加载思维导图
             autoLoadFromGithub(); // 自动从GitHub加载
             saveHistory(); // 保存初始状态到历史记录
-            
-            // 启动自动保存定时器（每30秒自动保存一次）
-            setInterval(autoSaveToCloud, 30000);
-            console.log('自动保存功能已启动，每30秒保存一次');
         }
 
         // 自动从GitHub仓库加载
@@ -1089,15 +1099,9 @@
                     dragOffsetX = node.x;
                     dragOffsetY = node.y;
                     
-                    // 检测双击
-                    const currentTime = new Date().getTime();
-                    const tapLength = currentTime - lastTapTime;
-                    if (tapLength < 300 && tapLength > 0) {
-                        // 双击检测到，直接进入拖动状态
-                        isDragging = true;
-                        nodeElement.classList.add('dragging');
-                    }
-                    lastTapTime = currentTime;
+                    // 直接进入拖动状态，无需双击
+                    isDragging = true;
+                    nodeElement.classList.add('dragging');
                 });
                 
 
@@ -1208,6 +1212,88 @@
             document.getElementById('tokenForm').classList.add('hidden');
         }
 
+        // 显示分享码输入表单
+        function showShareCodeForm() {
+            document.getElementById('shareCodeForm').classList.remove('hidden');
+        }
+
+        // 关闭分享码输入表单
+        function closeShareCodeForm() {
+            document.getElementById('shareCodeForm').classList.add('hidden');
+        }
+
+        // 从表单导入分享码
+        function importShareCodeWithForm() {
+            const shareCode = document.getElementById('shareCodeInput').value;
+            if (shareCode) {
+                try {
+                    // 1. 解码压缩编码
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+                    let encodedData = '';
+                    for (let i = 0; i < shareCode.length; i += 3) {
+                        const chunk = shareCode.substr(i, 3);
+                        if (chunk.length === 3) {
+                            const val = (chars.indexOf(chunk[0]) << 12) | (chars.indexOf(chunk[1]) << 6) | chars.indexOf(chunk[2]);
+                            encodedData += chars[(val >> 12) & 63] + chars[(val >> 6) & 63] + chars[val & 63];
+                        } else {
+                            encodedData += chunk;
+                        }
+                    }
+                    
+                    // 2. 对分享码进行Base64url解码
+                    let decodedData;
+                    try {
+                        const base64DecodedData = atob(encodedData
+                            .replace(/-/g, '+')
+                            .replace(/_/g, '/')
+                            .padEnd(encodedData.length + (4 - encodedData.length % 4) % 4, '='));
+                        // 3. 对结果进行URI解码
+                        decodedData = decodeURIComponent(escape(base64DecodedData));
+                    } catch (decodeError) {
+                        throw new Error('分享码格式错误');
+                    }
+                    
+                    // 4. 解析JSON
+                    let parsedData;
+                    try {
+                        parsedData = JSON.parse(decodedData);
+                    } catch (parseError) {
+                        throw new Error('分享码数据格式错误');
+                    }
+                    
+                    // 5. 处理节点数据
+                    const loadedNodes = (parsedData.n || []).map(node => ({
+                        id: node.i,
+                        text: node.t,
+                        x: node.x,
+                        y: node.y,
+                        parentId: node.p,
+                        note: node.nt // 还原节点备注
+                    }));
+                    nodes = loadedNodes;
+                    
+                    // 6. 计算 currentNodeId
+                    if (parsedData.c) {
+                        currentNodeId = parsedData.c;
+                    } else if (loadedNodes.length > 0) {
+                        const maxId = Math.max(...loadedNodes.map(n => n.id));
+                        currentNodeId = maxId + 1;
+                    } else {
+                        currentNodeId = 1;
+                    }
+                    
+                    render();
+                    saveHistory(); // 保存加载后的状态
+                    closeShareCodeForm();
+                    alert('已从分享码加载思维导图');
+                } catch (error) {
+                    alert('从分享码加载失败，请检查分享码是否正确');
+                }
+            } else {
+                alert('请输入分享码');
+            }
+        }
+
         // 保存到GitHub仓库的核心函数
         async function saveToCloudWithToken() {
             const token = document.getElementById('githubToken').value;
@@ -1289,66 +1375,6 @@
                     hideSaveProgress();
                     alert('保存失败：' + error.message);
                 }, 500);
-            }
-        }
-
-        // 自动保存到GitHub仓库
-        async function autoSaveToCloud() {
-            if (!GITHUB_TOKEN) {
-                console.log('GitHub Token未配置，无法自动保存');
-                return;
-            }
-
-            try {
-                // 准备数据
-                const data = JSON.stringify({ nodes, currentNodeId }, null, 2);
-                const content = btoa(unescape(encodeURIComponent(data))); // Base64编码
-
-                // 首先获取文件的当前SHA（如果文件存在）
-                let sha = null;
-                try {
-                    const getResponse = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`, {
-                        headers: {
-                            'Authorization': `token ${GITHUB_TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    });
-                    if (getResponse.ok) {
-                        const fileData = await getResponse.json();
-                        sha = fileData.sha;
-                    }
-                } catch (e) {
-                    console.log('文件不存在，将创建新文件');
-                }
-
-                // 创建或更新文件
-                const body = {
-                    message: '自动更新关系图数据',
-                    content: content,
-                    branch: GITHUB_CONFIG.branch
-                };
-                if (sha) {
-                    body.sha = sha;
-                }
-
-                const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${GITHUB_TOKEN}`,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(body)
-                });
-
-                if (response.ok) {
-                    console.log('自动保存成功');
-                } else {
-                    const error = await response.json();
-                    console.error('自动保存失败：', error.message || '未知错误');
-                }
-            } catch (error) {
-                console.error('自动保存失败:', error);
             }
         }
 
@@ -1611,71 +1637,7 @@
 
         // 导入分享码
         function importShareCode() {
-            const shareCode = prompt('请输入分享码：');
-            if (shareCode) {
-                try {
-                    // 1. 解码压缩编码
-                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-                    let encodedData = '';
-                    for (let i = 0; i < shareCode.length; i += 3) {
-                        const chunk = shareCode.substr(i, 3);
-                        if (chunk.length === 3) {
-                            const val = (chars.indexOf(chunk[0]) << 12) | (chars.indexOf(chunk[1]) << 6) | chars.indexOf(chunk[2]);
-                            encodedData += chars[(val >> 12) & 63] + chars[(val >> 6) & 63] + chars[val & 63];
-                        } else {
-                            encodedData += chunk;
-                        }
-                    }
-                    
-                    // 2. 对分享码进行Base64url解码
-                    let decodedData;
-                    try {
-                        const base64DecodedData = atob(encodedData
-                            .replace(/-/g, '+')
-                            .replace(/_/g, '/')
-                            .padEnd(encodedData.length + (4 - encodedData.length % 4) % 4, '='));
-                        // 3. 对结果进行URI解码
-                        decodedData = decodeURIComponent(escape(base64DecodedData));
-                    } catch (decodeError) {
-                        throw new Error('分享码格式错误');
-                    }
-                    
-                    // 4. 解析JSON
-                    let parsedData;
-                    try {
-                        parsedData = JSON.parse(decodedData);
-                    } catch (parseError) {
-                        throw new Error('分享码数据格式错误');
-                    }
-                    
-                    // 5. 处理节点数据
-                    const loadedNodes = (parsedData.n || []).map(node => ({
-                        id: node.i,
-                        text: node.t,
-                        x: node.x,
-                        y: node.y,
-                        parentId: node.p,
-                        note: node.nt // 还原节点备注
-                    }));
-                    nodes = loadedNodes;
-                    
-                    // 6. 计算 currentNodeId
-                    if (parsedData.c) {
-                        currentNodeId = parsedData.c;
-                    } else if (loadedNodes.length > 0) {
-                        const maxId = Math.max(...loadedNodes.map(n => n.id));
-                        currentNodeId = maxId + 1;
-                    } else {
-                        currentNodeId = 1;
-                    }
-                    
-                    render();
-                    saveHistory(); // 保存加载后的状态
-                    alert('已从分享码加载思维导图');
-                } catch (error) {
-                    alert('从分享码加载失败，请检查分享码是否正确');
-                }
-            }
+            showShareCodeForm();
         }
 
         // 从URL参数加载思维导图（保留此功能以兼容旧链接）
@@ -1822,6 +1784,18 @@
             const exportCanvas = document.createElement('canvas');
             const ctx = exportCanvas.getContext('2d');
             
+            // 设置抗锯齿和高质量渲染
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.textRendering = 'optimizeLegibility';
+            ctx.fontSmoothingEnabled = true;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            
+            // 提高文本清晰度
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'start';
+            
             // 计算节点实际大小和画布边界
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             const nodeSizes = {};
@@ -1885,15 +1859,25 @@
             maxX += padding;
             maxY += padding;
             
+            // 计算基础尺寸
+            const baseWidth = maxX - minX;
+            const baseHeight = maxY - minY;
+            
+            // 增加分辨率（8倍）以获得最高质量
+            const scaleFactor = 8;
+            const width = baseWidth * scaleFactor;
+            const height = baseHeight * scaleFactor;
+            
             // 设置导出canvas的尺寸
-            const width = maxX - minX;
-            const height = maxY - minY;
             exportCanvas.width = width;
             exportCanvas.height = height;
             
+            // 缩放上下文以保持正确的比例
+            ctx.scale(scaleFactor, scaleFactor);
+            
             // 填充白色背景
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, width, height);
+            ctx.fillRect(0, 0, baseWidth, baseHeight);
             
             // 绘制连接线
             ctx.strokeStyle = '#95a5a6';
@@ -1959,6 +1943,8 @@
                 ctx.font = '14px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'top';
+                ctx.fontSmoothingEnabled = true;
+                ctx.textRendering = 'optimizeLegibility';
                 
                 // 处理文本换行
                 const padding = 12;
@@ -1996,6 +1982,8 @@
                     ctx.fillStyle = '#666666';
                     ctx.font = '10px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
                     ctx.fontStyle = 'italic';
+                    ctx.fontSmoothingEnabled = true;
+                    ctx.textRendering = 'optimizeLegibility';
                     const noteLineHeight = 12;
                     const noteLines = node.note.split('\n');
                     startY += lines.length * lineHeight + 4; // 4px margin
@@ -2007,7 +1995,8 @@
             
             // 导出图片
             try {
-                const dataUrl = exportCanvas.toDataURL('image/png');
+                // 使用最高质量的PNG格式
+                const dataUrl = exportCanvas.toDataURL('image/png', 1.0);
                 const link = document.createElement('a');
                 link.download = '思维导图_' + new Date().getTime() + '.png';
                 link.href = dataUrl;
